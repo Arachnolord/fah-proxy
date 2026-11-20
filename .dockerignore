@@ -1,0 +1,12 @@
+.git
+.superpowers
+tests
+docs
+dist
+daten
+caddy-daten
+caddy-config
+kein-npm
+*.zip
+*.bak
+.env

@@ -1,0 +1,9 @@
+{
+  "name": "fah-proxy",
+  "version": "0.7.0",
+  "private": true,
+  "type": "module",
+  "description": "FAH-Proxy – Reverse-Proxy mit einfacher Oberfläche (Caddy als Motor)",
+  "scripts": { "test": "node --test --test-reporter=spec tests/*.test.js" },
+  "engines": { "node": ">=22.13" }
+}

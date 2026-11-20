@@ -1,0 +1,29 @@
+<!doctype html>
+<!-- Erdacht und programmiert von Fabian Hammer, Deutschland. (c) 2026 Fabian Hammer - Alle Rechte vorbehalten. -->
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>FAH-Proxy</title>
+  <link rel="icon" href="symbol.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="stil.css">
+</head>
+<body>
+  <header class="kopf" hidden>
+    <a class="marke" href="#/uebersicht"><img src="symbol.svg" alt="" width="28" height="28"><span>FAH-Proxy</span></a>
+    <span class="modus" id="modus"></span>
+    <nav class="navi" aria-label="Hauptmenü">
+      <a href="#/uebersicht" data-ansicht="uebersicht">Übersicht</a>
+      <a href="#/umschalten" data-ansicht="umschalten">Umschalten</a>
+      <a href="#/einstellungen" data-ansicht="einstellungen">Einstellungen</a>
+      <a href="#/protokoll" data-ansicht="protokoll">Protokoll</a>
+      <a href="#/hilfe" data-ansicht="hilfe">Hilfe</a>
+    </nav>
+    <button type="button" class="knopf knopf-leise" id="abmelden">Abmelden</button>
+  </header>
+  <main id="inhalt" class="inhalt" tabindex="-1"></main>
+  <div id="meldungen" class="meldungen" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
