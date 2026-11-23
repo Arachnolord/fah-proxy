@@ -45,7 +45,7 @@ export function domainNormieren(e) {
   if (schutz === 'ipliste' && !ip_liste.length) throw new Fehler('E_EINGABE', 'Für „Eigene IP-Liste“ mindestens eine Adresse oder ein Netz eintragen', { feld: 'ip_liste' });
   if (ip_liste.length > 200) throw new Fehler('E_EINGABE', 'Höchstens 200 Einträge in der IP-Liste', { feld: 'ip_liste' });
   const notiz = String(e.notiz ?? '').replace(/[\u0000-\u001f]/g, ' ').slice(0, NOTIZ_MAX);
-  const herkunft = /^(neu|npm:\d+|spiegel)$/.test(String(e.herkunft || 'neu')) ? String(e.herkunft || 'neu') : 'neu';
+  const herkunft = /^(neu|npm:\d+|spiegel|dienst)$/.test(String(e.herkunft || 'neu')) ? String(e.herkunft || 'neu') : 'neu';
   const rubrik = String(e.rubrik ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 40).trim();
   return { domain, ziel, schutz, ip_liste, pfade: pfadeNormieren(e.pfade), hsts: e.hsts !== false, aktiv: e.aktiv !== false, ziel_tls_pruefen: e.ziel_tls_pruefen === true, notiz, herkunft, rubrik };
 }

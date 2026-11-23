@@ -16,6 +16,8 @@ import { partnerKoppeln, zustand as spiegelZustand } from '../spiegel/partner.js
 import { standBauen, standAnwenden } from '../spiegel/stand.js';
 import { uiFingerabdruck } from '../spiegel/haupt.js';
 import { zielPruefen } from '../gemeinsam/pruefen.js';
+import { zertifikateFinden, verwalteteZertifikate } from '../caddy/zertifikate.js';
+import fsp from 'node:fs/promises';
 
 export const LESE_PRAEFIX = 'FAHPROXYLESE1.';
 const sha = (x) => crypto.createHash('sha256').update(String(x)).digest('hex');
@@ -36,6 +38,68 @@ export function apiRegistrieren(app) {
     return ergebnis;
   }
   const wer = (ctx) => ctx.sitzung.name;
+
+  // ── Dienst-Schnittstelle (Rolle „dienst“, z. B. FAH-Adblock): nur die eigene Gruppe „AdBlock DNS Domains“ ──────────────
+  // Erlaubt ist NUR: Domains „dns-…<basis>“ in dieser Gruppe anlegen/ändern/löschen, Ziel http://<private IPv4>:<Port>, Schutzstufe
+  // immer „Öffentlich“. Andere Einträge sieht und berührt ein Dienst-Konto nicht. Ältere Einträge von FAH-Adblock (Notiz
+  // „FAH-Adblock unterwegs…“) werden einmal in die Gruppe übernommen.
+  const DNS_GRUPPE = 'AdBlock DNS Domains';
+  const DNS_NOTIZ = 'FAH-Adblock unterwegs';
+  const dnsEigen = (d) => String(d.domain).startsWith('dns-') && (d.rubrik === DNS_GRUPPE || String(d.notiz || '').startsWith(DNS_NOTIZ));
+  const dnsZiel = (z) => { const m = /^http:\/\/(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}):(\d{2,5})$/.exec(String(z || '')); if (!m) throw new Fehler('E_EINGABE', 'Ziel: http://<private IPv4>:<Port>', { feld: 'ziel' }); return m[0]; };
+  web.route('GET', '/api/dienst/dns', { dienst: true }, async () => ({ aktiv: app.istAktiv(), gruppe: DNS_GRUPPE, domains: domains.liste().filter(dnsEigen).map((d) => ({ domain: d.domain, ziel: d.ziel, aktiv: d.aktiv !== false })) }));
+  web.route('PUT', '/api/dienst/dns', { dienst: true }, async (ctx) => {
+    const b = await ctx.body();
+    const basis = String(b.basis || '').toLowerCase();
+    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(basis)) throw new Fehler('E_EINGABE', 'Basisdomain ungültig', { feld: 'basis' });
+    const ziel = dnsZiel(b.ziel);
+    const soll = new Map();
+    for (const x of (Array.isArray(b.soll) ? b.soll : []).slice(0, 50)) {
+      const dom = String(x.domain || '').toLowerCase();
+      if (!/^dns-[a-z0-9](?:[a-z0-9-]{0,22}[a-z0-9])?\./.test(dom) || !dom.endsWith(`.${basis}`) || dom.slice(0, -basis.length - 1).includes('.')) throw new Fehler('E_EINGABE', `Kein Gerätename unter ${basis}: ${dom}`, { feld: 'soll' });
+      soll.set(dom, String(x.name || '').replace(/[\u0000-\u001f]/g, ' ').slice(0, 60));
+    }
+    const r = { angelegt: [], geaendert: [], geloescht: [], fremd: [] };
+    await mitCaddy(async () => {
+      for (const d of domains.liste()) {
+        if (!dnsEigen(d) || !d.domain.endsWith(`.${basis}`)) continue;
+        if (!soll.has(d.domain)) { await domains.loeschen(d.id); r.geloescht.push(d.domain); continue; }
+        if (d.ziel !== ziel || d.schutz !== 'oeffentlich' || d.aktiv === false || d.rubrik !== DNS_GRUPPE) { await domains.aendern(d.id, { ziel, schutz: 'oeffentlich', aktiv: true, rubrik: DNS_GRUPPE, notiz: `${DNS_NOTIZ}: ${soll.get(d.domain)} (nur DNS-Dienst, Oberfläche gesperrt)`, pfade: [] }); r.geaendert.push(d.domain); }
+      }
+      const da = new Map(domains.liste().map((d) => [d.domain, d]));
+      for (const [dom, name] of soll) {
+        const d = da.get(dom);
+        if (d && !dnsEigen(d)) { r.fremd.push(dom); continue; }   // gleichnamiger fremder Eintrag: nicht anfassen
+        if (!d) { await domains.anlegen({ domain: dom, ziel, schutz: 'oeffentlich', rubrik: DNS_GRUPPE, notiz: `${DNS_NOTIZ}: ${name} (nur DNS-Dienst, Oberfläche gesperrt)`, herkunft: 'dienst' }); r.angelegt.push(dom); }
+      }
+    });
+    if (r.angelegt.length || r.geaendert.length || r.geloescht.length) protokoll.eintragen({ wer: wer(ctx), aktion: 'dienst.dns', ziel: DNS_GRUPPE, details: { felder: [`+${r.angelegt.length} ~${r.geaendert.length} −${r.geloescht.length}`, ...r.angelegt.map((x) => `neu ${x}`), ...r.geloescht.map((x) => `weg ${x}`)] } });
+    return r;
+  });
+  // Zertifikate der eigenen Gruppe (FAH-Adblock braucht für DNS-over-TLS dasselbe Zertifikat wie Caddy – so wird je Name nur EINES
+  // geholt; selfhost.eu & Co. teilen sich bei Let's Encrypt ein Wochenkontingent). Nur Domains der Gruppe, nur gültige.
+  web.route('GET', '/api/dienst/zertifikate', { dienst: true }, async () => {
+    const eigen = new Set(domains.liste().filter(dnsEigen).map((d) => d.domain));
+    const beste = new Map();
+    for (const quelle of [await zertifikateFinden(app.zertOrdner), await verwalteteZertifikate(app.caddyDaten)]) for (const [d, z] of quelle) if (eigen.has(d) && z.bis > new Date() && (!beste.has(d) || beste.get(d).bis < z.bis)) beste.set(d, z);
+    const aus = [];
+    for (const [d, z] of beste) { try { aus.push({ domain: d, bis: z.bis.toISOString(), kette: await fsp.readFile(z.fullchain, 'utf8'), schluessel: await fsp.readFile(z.privkey, 'utf8') }); } catch { /* gerade erneuert */ } }
+    return { zertifikate: aus, fehlend: [...eigen].filter((d) => !beste.has(d)) };
+  });
+  // Ein Admin-Konto stuft sich selbst zum Dienst herab (FAH-Adblock vor 0.9.6 legte sein Konto als Admin an) – nur nach unten, nie zurück
+  web.route('POST', '/api/dienst/herabstufen', { dienst: true }, async (ctx) => {
+    if (ctx.sitzung.rolle === 'dienst') return { rolle: 'dienst' };
+    const k = await konten.aendern(ctx.sitzung.name, { rolle: 'dienst' });
+    protokoll.eintragen({ wer: wer(ctx), aktion: 'konto.geaendert', ziel: k.name, details: { felder: ['rolle → dienst (selbst)'] } });
+    return { rolle: k.rolle };
+  });
+  // Dienst-Konto entfernt sich selbst (FAH-Adblock „entkoppeln“)
+  web.route('DELETE', '/api/dienst/konto', { dienst: true }, async (ctx) => {
+    if (ctx.sitzung.rolle !== 'dienst') throw new Fehler('E_RECHTE', 'Nur für Dienst-Konten');
+    await konten.loeschen(ctx.sitzung.name);
+    protokoll.eintragen({ wer: wer(ctx), aktion: 'dienst.entkoppelt', ziel: ctx.sitzung.name });
+    return { geloescht: ctx.sitzung.name };
+  });
 
   web.route('GET', '/api/uebersicht', {}, async () => {
     const status = app.pruefer.stand(); const zugriffe = app.zugriffe.zusammenfassung(); const zert = await app.zertifikate();

@@ -206,3 +206,57 @@ test('Ohne UniFi (anderer Router): nach Bestätigung live bzw. zurück in Bereit
     assert.equal(r.j.fehler.code, 'E_EINGABE'); assert.equal(u.app.einstellungen.lesen().modus, 'test');
   } finally { await u.zu(); }
 });
+
+test('Dienst-Konto (FAH-Adblock): nur Gruppe „AdBlock DNS Domains“ – anlegen, Ziel ändern, löschen; keine Verwaltung, keine fremden Einträge, keine geschützten Seiten; entfernt sich selbst', async () => {
+  const u = await aufbau();
+  try {
+    await u.c('POST', '/api/domains', { domain: 'nas.beispiel.de', ziel: 'http://192.168.1.23:5000', schutz: 'oeffentlich' });
+    await u.c('POST', '/api/domains', { domain: 'dns-alt.beispiel.de', ziel: 'http://192.168.1.29:8053', schutz: 'oeffentlich', notiz: 'FAH-Adblock unterwegs: Altgerät' });
+    await u.c('POST', '/api/domains', { domain: 'dns-fremd.beispiel.de', ziel: 'http://192.168.1.5:80', schutz: 'heimnetz' });
+    assert.equal((await u.c('POST', '/api/konten', { name: 'fah-adblock', passwort: 'Zufall-Passwort-123456', rolle: 'dienst' })).status, 200);
+    await u.c('POST', '/api/abmelden', {});
+    const a = await u.c('POST', '/api/anmelden', { name: 'fah-adblock', passwort: 'Zufall-Passwort-123456' });
+    assert.equal(a.status, 200, JSON.stringify(a.j));
+    // keine Verwaltung
+    for (const [m, p] of [['GET', '/api/uebersicht'], ['GET', '/api/konten'], ['GET', '/api/einstellungen'], ['POST', '/api/domains'], ['GET', '/api/spiegel/export']]) assert.equal((await u.c(m, p, m === 'POST' ? { domain: 'x.beispiel.de', ziel: 'http://1.2.3.4:80' } : undefined)).j.fehler?.code, 'E_RECHTE', `${m} ${p}`);
+    let r = await u.c('GET', '/api/dienst/dns');
+    assert.deepEqual(r.j.ergebnis.domains.map((d) => d.domain), ['dns-alt.beispiel.de'], 'sieht nur eigene Einträge');
+    r = await u.c('PUT', '/api/dienst/dns', { basis: 'beispiel.de', ziel: 'http://192.168.1.29:8053', soll: [{ domain: 'dns-tablet.beispiel.de', name: 'Tablet' }, { domain: 'dns-fremd.beispiel.de', name: 'X' }] });
+    assert.equal(r.status, 200, JSON.stringify(r.j));
+    assert.deepEqual(r.j.ergebnis, { angelegt: ['dns-tablet.beispiel.de'], geaendert: [], geloescht: ['dns-alt.beispiel.de'], fremd: ['dns-fremd.beispiel.de'] });
+    const liste = u.app.domains.liste();
+    const neu = liste.find((d) => d.domain === 'dns-tablet.beispiel.de');
+    assert.equal(neu.rubrik, 'AdBlock DNS Domains'); assert.equal(neu.schutz, 'oeffentlich');
+    assert.ok(liste.find((d) => d.domain === 'dns-fremd.beispiel.de').schutz === 'heimnetz' && liste.some((d) => d.domain === 'nas.beispiel.de'), 'fremde Einträge unberührt');
+    // Grenzen: nur dns-Namen direkt unter der Basis, nur private Ziele
+    assert.equal((await u.c('PUT', '/api/dienst/dns', { basis: 'beispiel.de', ziel: 'http://192.168.1.29:8053', soll: [{ domain: 'nas.beispiel.de' }] })).j.fehler.code, 'E_EINGABE');
+    assert.equal((await u.c('PUT', '/api/dienst/dns', { basis: 'beispiel.de', ziel: 'http://192.168.1.29:8053', soll: [{ domain: 'dns-a.tief.beispiel.de' }] })).j.fehler.code, 'E_EINGABE');
+    assert.equal((await u.c('PUT', '/api/dienst/dns', { basis: 'beispiel.de', ziel: 'http://8.8.8.8:80', soll: [] })).j.fehler.code, 'E_EINGABE');
+    r = await u.c('PUT', '/api/dienst/dns', { basis: 'beispiel.de', ziel: 'http://192.168.1.23:8053', soll: [{ domain: 'dns-tablet.beispiel.de', name: 'Tablet' }] });
+    assert.deepEqual(r.j.ergebnis.geaendert, ['dns-tablet.beispiel.de']);
+    assert.equal(u.app.domains.liste().find((d) => d.domain === 'dns-tablet.beispiel.de').ziel, 'http://192.168.1.23:8053');
+    assert.equal(u.app.konten.darfDomain('fah-adblock', 'geheim.beispiel.de'), false, 'Dienst öffnet keine geschützten Seiten');
+    // Zertifikate: nur die der eigenen Gruppe
+    const { execFileSync } = await import('node:child_process');
+    for (const dom of ['dns-tablet.beispiel.de', 'nas.beispiel.de']) {
+      const o = path.join(u.d, 'zertifikate', dom); await fs.mkdir(o, { recursive: true });
+      execFileSync('openssl', ['req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', path.join(o, 'privkey.pem'), '-out', path.join(o, 'fullchain.pem'), '-days', '30', '-subj', `/CN=${dom}`, '-addext', `subjectAltName=DNS:${dom}`], { stdio: 'ignore' });
+    }
+    r = await u.c('GET', '/api/dienst/zertifikate');
+    assert.deepEqual(r.j.ergebnis.zertifikate.map((z) => z.domain), ['dns-tablet.beispiel.de']);
+    assert.ok(r.j.ergebnis.zertifikate[0].schluessel.includes('PRIVATE KEY'));
+    r = await u.c('DELETE', '/api/dienst/konto');
+    assert.equal(r.status, 200);
+    assert.ok(!u.app.konten.liste().some((k) => k.name === 'fah-adblock'));
+    // Altes Admin-Konto einer App stuft sich selbst herab – danach keine Verwaltung mehr
+    await u.c('POST', '/api/anmelden', { name: 'admin', passwort: 'Sehr-Geheim-2026' });
+    await u.c('POST', '/api/konten', { name: 'app-alt', passwort: 'Zufall-Passwort-654321', rolle: 'admin' });
+    await u.c('POST', '/api/abmelden', {});
+    await u.c('POST', '/api/anmelden', { name: 'app-alt', passwort: 'Zufall-Passwort-654321' });
+    r = await u.c('POST', '/api/dienst/herabstufen', {});
+    assert.equal(r.j.ergebnis.rolle, 'dienst');
+    assert.equal(u.app.konten.liste().find((k) => k.name === 'app-alt').rolle, 'dienst');
+    await u.c('POST', '/api/abmelden', {}); await u.c('POST', '/api/anmelden', { name: 'app-alt', passwort: 'Zufall-Passwort-654321' });
+    assert.equal((await u.c('GET', '/api/konten')).j.fehler?.code, 'E_RECHTE');
+  } finally { await u.zu(); }
+});

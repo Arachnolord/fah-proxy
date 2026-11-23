@@ -60,13 +60,13 @@ export class Web {
         if (!(e.details && e.details.code_noetig && !b.code)) this.bremse.fehler(ctx.ip, name);
         throw e;
       }
-      if (k.rolle !== 'admin') throw new Fehler('E_RECHTE', 'Dieses Konto darf nur geschützte Seiten öffnen, nicht die Verwaltung');
+      if (k.rolle !== 'admin' && k.rolle !== 'dienst') throw new Fehler('E_RECHTE', 'Dieses Konto darf nur geschützte Seiten öffnen, nicht die Verwaltung');
       this.bremse.erfolg(ctx.ip, name);
       const s = await (await this.sitzungenBereit).erstellen({ name: k.name, rolle: k.rolle, art: 'ui' });
       ctx.cookies.push(cookie('fp_sitzung', s.id), cookie('fp_csrf', s.csrf, { httpOnly: false }));
       return { name: k.name, rolle: k.rolle, pflichtwechsel: k.pflichtwechsel };
     });
-    this.route('POST', '/api/abmelden', {}, async (ctx) => {
+    this.route('POST', '/api/abmelden', { dienst: true }, async (ctx) => {
       await (await this.sitzungenBereit).beenden(ctx.sitzungsId);
       ctx.cookies.push(cookie('fp_sitzung', '', { maxAge: 0 }), cookie('fp_csrf', '', { httpOnly: false, maxAge: 0 }));
       return { abgemeldet: true };
@@ -106,7 +106,7 @@ export class Web {
         const c = cookiesLesen(req.headers.cookie);
         const s = (await this.sitzungenBereit).holen(c.fp_sitzung, { art: 'ui' });
         if (!s) throw new Fehler('E_ANMELDUNG', 'Bitte anmelden');
-        if (s.rolle !== 'admin') throw new Fehler('E_RECHTE', 'Keine Berechtigung');
+        if (s.rolle !== 'admin' && !(s.rolle === 'dienst' && r.opts.dienst)) throw new Fehler('E_RECHTE', 'Keine Berechtigung');
         if (r.opts.csrf && !gleich(req.headers['x-fp-csrf'], s.csrf)) throw new Fehler('E_CSRF', 'Sicherheitsprüfung fehlgeschlagen – bitte die Seite neu laden');
         const k = this.konten.liste().find((x) => x.name === s.name);
         if (!k || k.gesperrt) throw new Fehler('E_ANMELDUNG', 'Bitte anmelden');

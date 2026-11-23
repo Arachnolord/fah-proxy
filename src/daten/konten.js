@@ -16,6 +16,10 @@ const NAME = /^[a-z0-9._-]{2,32}$/;
 export const PASSWORT_MIN = 10;
 const UNBEKANNT = 'Name oder Passwort stimmt nicht';
 
+// Rollen: admin (bedient FAH-Proxy), nutzer (meldet sich vor geschützten Domains an), dienst (andere FAH-App, darf NUR ihre eigene
+// Gruppe von Einträgen pflegen – z. B. FAH-Adblock die „AdBlock DNS Domains“; keine Oberfläche, keine geschützten Seiten).
+export const ROLLEN = ['admin', 'nutzer', 'dienst'];
+
 export class Konten {
   constructor(datei, geheim, konten) { this.datei = datei; this.geheim = geheim; this.konten = konten; this.vorbereitet = new Map(); }
 
@@ -72,7 +76,7 @@ export class Konten {
     const n = String(name || '').trim().toLowerCase();
     if (!NAME.test(n)) throw new Fehler('E_EINGABE', 'Name: 2–32 Zeichen aus a–z, 0–9, Punkt, Bindestrich, Unterstrich', { feld: 'name' });
     if (this.konten.some((x) => x.name === n)) throw new Fehler('E_EXISTIERT', `Das Konto „${n}“ gibt es schon`, { feld: 'name' });
-    if (!['admin', 'nutzer'].includes(rolle)) throw new Fehler('E_EINGABE', 'Rolle muss admin oder nutzer sein', { feld: 'rolle' });
+    if (!ROLLEN.includes(rolle)) throw new Fehler('E_EINGABE', 'Rolle muss admin, nutzer oder dienst sein', { feld: 'rolle' });
     let liste;
     try { liste = [...new Set((domains || []).map(domainPruefen))]; } catch (f) { throw new Fehler('E_EINGABE', f.message, { feld: 'domains' }); }
     if (String(passwort ?? '').length < PASSWORT_MIN) throw new Fehler('E_EINGABE', `Das Passwort braucht mindestens ${PASSWORT_MIN} Zeichen`, { feld: 'passwort' });
@@ -84,7 +88,7 @@ export class Konten {
   async aendern(name, { rolle, domains, gesperrt }) {
     const k = this.#holen(name);
     if (rolle !== undefined) {
-      if (!['admin', 'nutzer'].includes(rolle)) throw new Fehler('E_EINGABE', 'Rolle muss admin oder nutzer sein', { feld: 'rolle' });
+      if (!ROLLEN.includes(rolle)) throw new Fehler('E_EINGABE', 'Rolle muss admin, nutzer oder dienst sein', { feld: 'rolle' });
       if (k.rolle === 'admin' && rolle !== 'admin' && this.konten.filter((x) => x.rolle === 'admin' && !x.gesperrt).length <= 1) throw new Fehler('E_EINGABE', 'Mindestens ein Admin muss bleiben', { feld: 'rolle' });
       k.rolle = rolle;
     }
@@ -108,6 +112,7 @@ export class Konten {
   darfDomain(name, domain) {
     const k = this.konten.find((x) => x.name === name);
     if (!k || k.gesperrt) return false;
+    if (k.rolle === 'dienst') return false;   // Dienst-Konten (z. B. FAH-Adblock) öffnen keine geschützten Seiten
     return k.rolle === 'admin' || !(k.domains || []).length || k.domains.includes(domain);
   }
 
@@ -135,7 +140,7 @@ export class Konten {
   /** Spiegel übernehmen (Ersatz-Instanz): prüfen, 2FA mit dem eigenen Schlüssel neu verschlüsseln, ganz ersetzen. */
   async spiegelUebernehmen(liste) {
     const neu = liste.map((k) => {
-      if (!k || !NAME.test(String(k.name)) || !['admin', 'nutzer'].includes(k.rolle) || typeof k.hash !== 'string') throw new Fehler('E_SPIEGEL', 'Ungültiges Konto im Spiegel – nicht übernommen');
+      if (!k || !NAME.test(String(k.name)) || !ROLLEN.includes(k.rolle) || typeof k.hash !== 'string') throw new Fehler('E_SPIEGEL', 'Ungültiges Konto im Spiegel – nicht übernommen');
       return { name: k.name, hash: k.hash, rolle: k.rolle, pflichtwechsel: !!k.pflichtwechsel, totp: k.totp && k.totp.aktiv ? { aktiv: true, geheimnis: this.geheim.verschluesseln(String(k.totp.geheimnis)) } : null,
         letzterSchritt: Number.isInteger(k.letzterSchritt) ? k.letzterSchritt : -1, domains: Array.isArray(k.domains) ? k.domains.map(String) : [], gesperrt: !!k.gesperrt };
     });

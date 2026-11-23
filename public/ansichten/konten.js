@@ -9,7 +9,7 @@
 import { el, api, feld, melden, dialog, fehlerZeigen, zustand } from '../app.js';
 import { qrErzeugen, qrZeichnen } from './qr.js';
 
-const ROLLEN = { nutzer: 'Nutzer – nur FAH-Anmeldung', admin: 'Admin – auch diese Oberfläche' };
+const ROLLEN = { nutzer: 'Nutzer – nur FAH-Anmeldung', admin: 'Admin – auch diese Oberfläche', dienst: 'Dienst – nur für eine andere FAH-App (z. B. FAH-Adblock)' };
 const pfadVon = (name) => `/api/konten/${encodeURIComponent(name)}`;
 const istIch = (k) => !!(k && zustand.ich && k.name === zustand.ich.name);
 
@@ -29,8 +29,8 @@ export async function kontenAbschnitt(wurzel) {
         el('thead', {}, el('tr', {}, ...['Name', 'Rolle', 'Domains', '2FA', ''].map((t) => el('th', { text: t })))),
         el('tbody', {}, ...konten.map((k) => el('tr', {},
           el('td', {}, el('b', { text: k.name }), istIch(k) ? el('span', { class: 'leise', text: ' (du)' }) : null, ' ', k.gesperrt ? el('span', { class: 'marke-klein schlecht', text: 'gesperrt' }) : null),
-          el('td', { text: k.rolle === 'admin' ? 'Admin' : 'Nutzer' }),
-          el('td', { class: 'leise', text: k.rolle === 'admin' || !k.domains.length ? 'alle geschützten' : k.domains.join(', ') }),
+          el('td', { text: k.rolle === 'admin' ? 'Admin' : k.rolle === 'dienst' ? 'Dienst (App)' : 'Nutzer' }),
+          el('td', { class: 'leise', text: k.rolle === 'dienst' ? 'nur eigene Gruppe (z. B. AdBlock DNS Domains)' : k.rolle === 'admin' || !k.domains.length ? 'alle geschützten' : k.domains.join(', ') }),
           el('td', { text: k.totp ? 'an' : 'aus' }),
           el('td', {}, el('button', { class: 'knopf knopf-zweit knopf-klein', type: 'button', text: 'Bearbeiten', on: { click: () => oeffnen(k) } }))))))));
   };
