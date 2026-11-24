@@ -8,6 +8,9 @@ Reverse-Proxy mit einfacher Oberfläche – Caddy als Motor, Zertifikate automat
 - **Umschalten per UniFi:** leitet 80/443 an FAH-Proxy (mit Vorschau jeder Änderung, Sicherung, Firewall- und DNS-Abgleich).
 - **Zwei Instanzen mit Fail-over:** Haupt + Ersatz gleichen sich ab (immer von der aktiven zur anderen); fällt die aktive
   aus, übernimmt die andere, danach geht das Internet samt Änderungen der Ausfallzeit zurück.
+- **Rolle „Dienst“ für andere FAH-Apps:** ein eingeschränktes Konto ohne Zugriff auf die Verwaltung. FAH-Adblock
+  legt damit seine Gerätenamen (`dns-<name>.<basis>`) für den Schutz unterwegs selbst an und löscht sie wieder –
+  nur in der Gruppe „AdBlock DNS Domains“, fremde Domains bleiben unberührt. Die Zertifikate holt es sich von hier.
 
 ## Screenshots
 
