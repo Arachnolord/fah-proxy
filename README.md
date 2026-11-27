@@ -33,6 +33,13 @@ Auf FAH-NAS: Apps → „App aus ZIP“.
 
 Ports (in `.env`, belegt → nächster freier): HTTP 28080, HTTPS 28443, Oberfläche 28181.
 
+## Git-Server dahinter
+Domain wie `git.example.org` anlegen, Ziel = Git-Server (z. B. `http://<Rechner>:3300`), Schutz **Nur Heimnetz + VPN**.
+Dann laufen `git clone` und `git push` über HTTPS mit dem Zertifikat von FAH-Proxy. Benutzer und Zugangsschlüssel prüft
+der Git-Server selbst. Den Schutz **Mit FAH-Anmeldung** nicht nehmen: git bekommt ohne Sitzungscookie die Weiterleitung
+zur Anmeldeseite und bricht ab. Die Sperre richtet sich nach der echten Absenderadresse (`remote_ip`), ein mitgeschickter
+`X-Forwarded-For`-Kopf öffnet nichts.
+
 ## Befehle
 `./manage.sh update [zip] | up | down | restart | rebuild | logs | status | url | port | admin-reset`
 
