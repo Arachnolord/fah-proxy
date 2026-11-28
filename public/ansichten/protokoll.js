@@ -33,7 +33,7 @@ export async function zeigen(wurzel) {
   const liste = await api('GET', '/api/protokoll');
   wurzel.append(el('h1', { text: 'Protokoll' }), el('p', { class: 'unter', text: 'Änderungen und Störungen, neueste zuerst.' }));
   if (!liste.length) { wurzel.append(el('p', { class: 'leise', text: 'Noch keine Einträge.' })); return; }
-  wurzel.append(el('div', { class: 'karte huelle' }, el('table', { class: 'tabelle' },
+  wurzel.append(el('div', { class: 'karte huelle' }, el('table', { class: 'tabelle protokoll' },
     el('thead', {}, el('tr', {}, el('th', { text: 'Zeit' }), el('th', { text: 'Wer' }), el('th', { text: 'Was' }), el('th', { text: 'Domain' }), el('th', { text: 'Einzelheiten' }))),
     el('tbody', {}, ...liste.map((e) => el('tr', {}, el('td', { text: zeit(e.zeit) }), el('td', { text: e.wer }), el('td', { text: TEXT[e.aktion] || e.aktion }), el('td', { class: 'mono', text: e.ziel || '' }), el('td', { class: 'leise', text: details(e) })))))));
 }

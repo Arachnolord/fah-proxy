@@ -12,19 +12,47 @@ Reverse-Proxy mit einfacher Oberfläche – Caddy als Motor, Zertifikate automat
   legt damit seine Gerätenamen (`dns-<name>.<basis>`) für den Schutz unterwegs selbst an und löscht sie wieder –
   nur in der Gruppe „AdBlock DNS Domains“, fremde Domains bleiben unberührt. Die Zertifikate holt es sich von hier.
 
-## Screenshots
+## So sieht es aus
 
-*Aufgenommen mit erfundenen Beispiel-Domains (`*.example.org`) und Platzhalter-Zielen – keine echten Adressen oder Daten.*
+*Aufgenommen aus einer Wegwerf-Instanz mit erfundenen Daten: Domains `*.heim.example.org`, Ziele `192.168.1.x`,
+Konto `max.mustermann`. Es sind keine echten Adressen oder Daten zu sehen.*
 
 ![Übersicht – Domains als Kacheln mit Status, Schutz und Zertifikat](docs/screenshots/1-uebersicht.png)
 
-| Liste | Domain bearbeiten |
-|---|---|
-| ![Liste](docs/screenshots/2-liste.png) | ![Domain bearbeiten](docs/screenshots/3-domain-bearbeiten.png) |
-| **Einstellungen & Schutzstufen** | **Umschalten (Fail-over)** |
-| ![Einstellungen](docs/screenshots/4-einstellungen.png) | ![Umschalten](docs/screenshots/6-umschalten.png) |
-| **Protokoll** | **Handy** |
-| ![Protokoll](docs/screenshots/5-protokoll.png) | <img src="docs/screenshots/7-handy.png" alt="Handy" width="260"> |
+Die **Übersicht** zeigt oben die Kennzahlen und darunter je Rubrik eine Kachel pro Domain mit Ziel, Schutzstufe, Status,
+Zertifikat und Zugriffen der letzten 24 h. Eine gestörte App fällt mit rotem Punkt und dem Grund sofort auf.
+
+![Liste – alle Domains als Tabelle](docs/screenshots/2-liste.png)
+
+Die **Liste** zeigt dieselben Domains kompakt als Tabelle, eine Zeile je Domain, zum schnellen Durchsehen vieler Einträge.
+
+![Domain bearbeiten – Adresse, Ziel, Rubrik und Schutzstufe](docs/screenshots/3-domain-bearbeiten.png)
+
+Unter **Domain bearbeiten** ändert man Adresse, Ziel und Rubrik und wählt per Kachel, wer die Seite öffnen darf.
+
+![Einstellungen – Allgemein, Schutzstufen, Passwort, Benachrichtigungen](docs/screenshots/4-einstellungen.png)
+
+In den **Einstellungen** stehen die E-Mail für Let's Encrypt, die Schutzstufen mit der Zahl ihrer Domains, das eigene
+Passwort und die ntfy-Warnungen.
+
+![Protokoll – wer hat wann was geändert](docs/screenshots/5-protokoll.png)
+
+Das **Protokoll** listet jede Änderung und jede Störung mit Zeit, Urheber und Einzelheiten, die neuesten zuerst.
+
+![Umschalten – Stand, Fail-over und Prüfliste](docs/screenshots/6-umschalten.png)
+
+**Umschalten** zeigt, ob diese Instanz das Internet bedient, ob die Ersatz-Instanz antwortet und ob Caddy, Ziele,
+Zertifikate und die UniFi-Konsole in Ordnung sind.
+
+<img src="docs/screenshots/7-handy.png" alt="Übersicht am Handy" width="260">
+
+Am **Handy** ordnet sich die Oberfläche untereinander an, alle Funktionen bleiben erreichbar.
+
+Die Bilder macht `node tools/bildschirmfotos.mjs` neu (nach jeder sichtbaren Änderung). Das Skript startet eine
+Wegwerf-Instanz mit erfundenen Daten und bedient die Oberfläche in Chromium headless: anmelden, Domain anlegen,
+Liste und Kacheln, Domain bearbeiten. Jede Ansicht prüft es zusätzlich schmal (720 px) und breit (2200 px).
+Mit `--nur-probe` läuft es nur als Bedienprobe, mit `--breiten <ordner>` legt es die Schmal- und Breit-Aufnahmen
+zum Ansehen ab.
 
 ## Installation
 `fah-proxy_release.zip` und `manage.sh` in einen leeren Ordner legen, dann `./manage.sh update`.

@@ -150,6 +150,8 @@ details.rubrik[open] > summary::before { transform: rotate(90deg); }
 .domainliste td:nth-child(2), .domainliste td:nth-child(4), .domainliste td:nth-child(8) { white-space: nowrap; }
 .domainliste td:nth-child(5) { min-width: 14ch; }
 .domainliste tr.aus { opacity: .55; }
+/* Protokoll: Zeit und Domain nie mitten im Wort umbrechen – lieber waagrecht scrollen; Einzelheiten dürfen umbrechen */
+.protokoll td:nth-child(1), .protokoll td:nth-child(4) { white-space: nowrap; }
 /* Hilfe: aufklappbare Karten mit nummerierten Schritten */
 details.hilfe { margin: 0 0 12px; }
 details.hilfe > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; list-style: none; }
