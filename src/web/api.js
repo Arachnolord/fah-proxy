@@ -195,7 +195,7 @@ export function apiRegistrieren(app) {
       const stand = await standLesen(client);
       const namen = liste.map((d) => d.domain);
       const partner = app.wache && typeof app.wache.stand === 'function' ? app.wache.stand().partner : null;
-      const p = umschaltPlan(stand.regeln, ziel, { ...stand, domains: namen, partnerIps: partner && partner.ip ? [partner.ip] : [], fahProxy443: await fahProxyAuf443(stand.dns, namen, app.pruefen443, [ziel.ip]) });
+      const p = umschaltPlan(stand.regeln, ziel, { ...stand, domains: namen, partnerIps: partner && partner.ip ? [partner.ip] : [], fahProxy443: await fahProxyAuf443(stand.dns, namen, app.pruefen443, [ziel.ip], await app.pruefDomain()) });
       const kurz = (s) => ({ bereich: s.bereich || 'weiterleitung', art: s.art, text: s.text });
       aus.plan = { ausfuehrbar: p.ausfuehrbar, probleme: p.probleme, hinweise: stand.hinweise, schritte: p.schritte.map(kurz) };
     } catch (err) { aus.fehler = Fehler.aus(err).message; }
@@ -222,7 +222,7 @@ export function apiRegistrieren(app) {
     const st = anwender.stand();
     if (st.ok === false || st.ausstehend) throw new Fehler('E_EINGABE', 'Caddy läuft gerade nicht sauber – erst die Meldung in der Übersicht klären');
     const partner = app.wache && typeof app.wache.stand === 'function' ? app.wache.stand().partner : null;
-    const r = await umschalten(app.unifiClient(), { ziel: app.unifiZiel(), sicherungOrdner: app.sicherungOrdner, domains: domains.liste().filter((d) => d.aktiv !== false).map((d) => d.domain), partnerIps: partner && partner.ip ? [partner.ip] : [], pruefen: app.pruefen443 });
+    const r = await umschalten(app.unifiClient(), { ziel: app.unifiZiel(), sicherungOrdner: app.sicherungOrdner, domains: domains.liste().filter((d) => d.aktiv !== false).map((d) => d.domain), partnerIps: partner && partner.ip ? [partner.ip] : [], pruefen: app.pruefen443, sni: await app.pruefDomain() });
     await einstellungen.setzen({ modus: 'live' });
     return { texte: r.plan.schritte.map((s) => s.text) };
   }));

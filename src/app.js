@@ -108,7 +108,7 @@ export class App {
   /** Diese Instanz von Hand aktiv machen (Werkzeug rolle.js aktiv / Rollentausch): UniFi-Weiterleitungen hierher, Modus live. */
   async aktivWerden(wer = 'system') {
     const partner = this.wache.stand().partner;
-    const r = await aktivWechseln(this.unifiClient(), { ziel: this.unifiZiel(), partnerIps: partner && partner.ip ? [partner.ip] : [], domains: this.domains.liste().filter((d) => d.aktiv !== false).map((d) => d.domain) });
+    const r = await aktivWechseln(this.unifiClient(), { ziel: this.unifiZiel(), partnerIps: partner && partner.ip ? [partner.ip] : [], domains: this.domains.liste().filter((d) => d.aktiv !== false).map((d) => d.domain), sni: await this.pruefDomain() });
     await this.einstellungen.setzen({ modus: 'live' });
     await this.anwender.anwenden().catch(() => {});
     const texte = r.schritte.map((s) => s.text);
@@ -146,6 +146,16 @@ export class App {
   }
 
   stoppen() { for (const t of this.timer) clearInterval(t); this.timer = []; this.pruefer.stoppen(); }
+
+  /**
+   * Eine aktive Domain, für die hier ein Zertifikat gilt: Unter ihr fragen Wache und Umschalten „antwortet dort ein FAH-Proxy
+   * auf 443?“ – unter einer Domain ohne Zertifikat scheitert schon der TLS-Aufbau (neue Domain im Testbetrieb).
+   */
+  async pruefDomain() {
+    const zert = await this.zertifikate();
+    const d = this.domains.liste().find((x) => x.aktiv !== false && zert[x.domain] && zert[x.domain].bis);
+    return d ? d.domain : null;
+  }
 
   /** Zertifikate je Domain: übernommene und von Caddy geholte, dazu welches gerade gilt. */
   async zertifikate() {

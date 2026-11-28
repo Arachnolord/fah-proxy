@@ -389,11 +389,11 @@ test('aktivWechseln: nur FAH-Proxy-Regeln auf die eigene IP + Firewall ergänzen
 });
 
 // ---- Wache: automatisches Fail-over ----
-async function wacheAufbau({ rolle, ich, partner, regeln }) {
+async function wacheAufbau({ rolle, ich, partner, regeln, dns = [] }) {
   const { App } = await import('../src/app.js');
   const { Wache, PRUEF_MS } = await import('../src/spiegel/wache.js');
   const http = await import('node:http');
-  const u = await unifiAttrappe(regeln, { firewall: [GEF_LIVE] });
+  const u = await unifiAttrappe(regeln, { firewall: [GEF_LIVE], dns });
   const d = await fs.mkdtemp(path.join(os.tmpdir(), 'fahproxy-wache-'));
   const caddy = http.createServer((req, res) => { req.resume(); req.on('end', () => { res.writeHead(200); res.end(); }); });
   await new Promise((r) => caddy.listen(0, '127.0.0.1', r));
@@ -406,14 +406,15 @@ async function wacheAufbau({ rolle, ich, partner, regeln }) {
   await app.einstellungen.setzen({ rolle, unifi: { url: u.url, benutzer: 'fahproxy', passwort: app.geheim.verschluesseln('richtig'), ziel_ip: ich }, spiegel: { ...app.einstellungen.lesen().spiegel, partner: rolle === 'ersatz' ? { ip: partner, http: 28080, https: 28443 } : null } });
   const lebt = { [partner]: true, caddy: true }; let uhr = Date.parse('2026-10-09T14:00:00Z');
   const proben = [];
+  const ohneZert = new Set(); // Domains, für die der Rechner kein Zertifikat hat → der TLS-Aufbau scheitert wie bei Caddy
   const rueckgaben = []; let rueckgabeKlappt = true; const meldungen = [];
-  const w = await Wache.laden(app, { pruefen: async ({ host, domain }) => { proben.push(`${host}/${domain}`); return lebt[host]; }, jetzt: () => uhr, partnerFuerHaupt: () => (rolle === 'haupt' ? { ip: partner, http: 28080, https: 28443 } : null),
+  const w = await Wache.laden(app, { pruefen: async ({ host, domain }) => { proben.push(`${host}/${domain}`); return !!lebt[host] && !ohneZert.has(domain); }, jetzt: () => uhr, partnerFuerHaupt: () => (rolle === 'haupt' ? { ip: partner, http: 28080, https: 28443 } : null),
     nachRueckgabe: async () => { meldungen.push(aktivIp(u.z.regeln)); },
     vorRueckgabe: async () => { rueckgaben.push(aktivIp(u.z.regeln)); if (!rueckgabeKlappt) throw new Error('Haupt nimmt nichts an'); } });
   app.wache = w;
   const takte = async (n = 1) => { for (let i = 0; i < n; i++) { uhr += PRUEF_MS; await w.takt(); } };
   const minute = (n = 1) => takte(n * Math.round(60_000 / PRUEF_MS));
-  return { u, app, w, lebt, proben, minute, takte, rueckgaben, meldungen, rueckgabeScheitert: (j) => { rueckgabeKlappt = !j; }, protokoll: async () => (await app.protokoll.lesen(50)).map((e) => e.aktion), zu: async () => { app.stoppen(); await new Promise((r) => caddy.close(r)); await u.zu(); await fs.rm(d, { recursive: true, force: true }); } };
+  return { u, app, w, lebt, proben, ohneZert, minute, takte, rueckgaben, meldungen, rueckgabeScheitert: (j) => { rueckgabeKlappt = !j; }, protokoll: async () => (await app.protokoll.lesen(50)).map((e) => e.aktion), zu: async () => { app.stoppen(); await new Promise((r) => caddy.close(r)); await u.zu(); await fs.rm(d, { recursive: true, force: true }); } };
 }
 const aufNas = LIVE_REGELN; // Weiterleitungen zeigen auf 192.168.1.23
 const aufMini = LIVE_REGELN.map((r) => (r.name.startsWith('FAH-Proxy') ? { ...r, fwd: '192.168.1.29' } : r));
@@ -501,6 +502,21 @@ test('Wache schreibt ihren Stand lesbar nach daten/wache-stand.json (Lämpchen d
     await t.minute();
     st = JSON.parse(await fs.readFile(datei, 'utf8'));
     assert.equal(st.aktiv_ip, '192.168.1.23'); assert.equal(st.partner_ok, false);
+  } finally { await t.zu(); }
+});
+
+test('Wache: Haupt übernimmt und holt den DNS-Platzhalter zu sich, auch wenn die erste Domain hier noch kein Zertifikat hat (23.11.: neue dns-…-Domain, DNS blieb auf dem Ersatz)', async () => {
+  const t = await wacheAufbau({ rolle: 'haupt', ich: '192.168.1.29', partner: '192.168.1.23', regeln: aufNas, dns: [{ ...WILDCARD, key: '*.beispiel.de', value: '192.168.1.23' }] });
+  try {
+    // FAH-Adblock legt während des Fail-overs eine Domain an, die alphabetisch vorn steht; im Testbetrieb holt Caddy dafür kein Zertifikat
+    await t.app.domains.anlegen({ domain: 'dns-tablet.beispiel.de', ziel: '192.168.1.29:8053', schutz: 'oeffentlich', herkunft: 'neu' });
+    t.ohneZert.add('dns-tablet.beispiel.de');
+    t.lebt['192.168.1.29'] = true; t.lebt['192.168.1.23'] = false;
+    await t.minute(2);
+    assert.equal(aktivIp(t.u.z.regeln), '192.168.1.29', 'übernommen');
+    assert.equal(t.u.z.dns[0].value, '192.168.1.29', 'DNS folgt der aktiven Instanz');
+    assert.equal(t.u.z.dns[0].enabled, true);
+    assert.ok(!t.proben.includes('192.168.1.29/dns-tablet.beispiel.de'), 'nie unter einer Domain ohne Zertifikat fragen');
   } finally { await t.zu(); }
 });
 

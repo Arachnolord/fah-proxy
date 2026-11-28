@@ -83,8 +83,11 @@ function zusammenfuehren(alt, neu) {
 /**
  * Ziele lokaler DNS-Einträge (A, aktiv, deckt eine Domain), unter denen auf 443 ein FAH-Proxy antwortet – solche Einträge
  * bleiben an (z. B. *.example.org → NAS, dessen Instanz zusätzlich 443 annimmt: nötig fürs WireGuard-VPN).
+ * `sni`: Domain mit Zertifikat, unter der gefragt wird (wie bei der Wache). Ohne Zertifikat scheitert schon der TLS-Aufbau,
+ * und ein lebender FAH-Proxy gälte als „nicht auf 443“ – am 23.11. blieb so der DNS beim Ersatz: Die alphabetisch erste
+ * Domain war eine neue dns-…-Domain, für die die Haupt-Instanz im Testbetrieb noch kein Zertifikat hatte.
  */
-export async function fahProxyAuf443(dns, domains, pruefen = datenwegPruefen, zusatz = []) {
+export async function fahProxyAuf443(dns, domains, pruefen = datenwegPruefen, zusatz = [], sni = null) {
   const ziele = new Map();
   if (domains.length) for (const h of zusatz) if (h) ziele.set(String(h), domains[0]);
   for (const e of dns) {
@@ -92,14 +95,15 @@ export async function fahProxyAuf443(dns, domains, pruefen = datenwegPruefen, zu
     const d = domains.find((x) => dnsDeckt(e.key, x));
     if (d && !ziele.has(String(e.value))) ziele.set(String(e.value), d);
   }
-  const ok = await Promise.all([...ziele].map(async ([host, domain]) => ((await pruefen({ host, port: 443, domain })) ? host : null)));
+  const frage = sni && domains.includes(sni) ? sni : null;
+  const ok = await Promise.all([...ziele].map(async ([host, domain]) => ((await pruefen({ host, port: 443, domain: frage || domain })) ? host : null)));
   return ok.filter(Boolean);
 }
 
 /** @returns {Promise<{plan, ausgefuehrt:number, sicherungDatei:string|null}>} */
-export async function umschalten(client, { ziel, sicherungOrdner, domains = [], partnerIps = [], pruefen = datenwegPruefen }) {
+export async function umschalten(client, { ziel, sicherungOrdner, domains = [], partnerIps = [], pruefen = datenwegPruefen, sni = null }) {
   const stand = await standLesen(client);
-  const fahProxy443 = await fahProxyAuf443(stand.dns, domains, pruefen, [ziel.ip]);
+  const fahProxy443 = await fahProxyAuf443(stand.dns, domains, pruefen, [ziel.ip], sni);
   const plan = { ...umschaltPlan(stand.regeln, ziel, { ...stand, domains, partnerIps, fahProxy443 }), hinweise: stand.hinweise };
   if (!plan.ausfuehrbar) throw new Fehler('E_EINGABE', `So lässt sich nicht umschalten: ${plan.probleme.join(' ')}`, { probleme: plan.probleme });
   if (!plan.schritte.length) return { plan, ausgefuehrt: 0, sicherungDatei: null };
@@ -124,10 +128,10 @@ export async function umschalten(client, { ziel, sicherungOrdner, domains = [], 
  * eigene IP ergänzen – nichts anderes (keine Sicherung). Gibt es die FAH-Proxy-Regeln noch nicht (nie umgeschaltet),
  * gibt es nichts zu wechseln. Fehler → eigene Schritte zurück.
  */
-export async function aktivWechseln(client, { ziel, partnerIps = [], domains = [], pruefen = datenwegPruefen }) {
+export async function aktivWechseln(client, { ziel, partnerIps = [], domains = [], pruefen = datenwegPruefen, sni = null }) {
   const stand = await standLesen(client);
   if (!stand.regeln.some((r) => r.name === NAME_HTTP) || !aktivIp(stand.regeln)) throw new Fehler('E_EINGABE', 'FAH-Proxy ist noch nicht umgeschaltet (keine Weiterleitungen „FAH-Proxy HTTP/HTTPS“) – es gibt nichts zu wechseln');
-  const fahProxy443 = await fahProxyAuf443(stand.dns, domains, pruefen, [ziel.ip]);
+  const fahProxy443 = await fahProxyAuf443(stand.dns, domains, pruefen, [ziel.ip], sni);
   const plan = umschaltPlan(stand.regeln, ziel, { ...stand, domains, partnerIps, fahProxy443 });
   if (!plan.ausfuehrbar) throw new Fehler('E_EINGABE', `So lässt sich nicht wechseln: ${plan.probleme.join(' ')}`);
   const eigene = new Set(stand.regeln.filter((r) => r.name === NAME_HTTP || r.name === NAME_HTTPS).map((r) => r._id));

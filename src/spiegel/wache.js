@@ -61,12 +61,6 @@ export class Wache {
     return mitZiel.length ? mitZiel[0].ziel : null;
   }
 
-  /** Eine aktive Domain, für die ein Zertifikat da ist (sonst scheitert schon der TLS-Aufbau beim Partner). */
-  async #pruefDomain() {
-    const zert = await this.app.zertifikate();
-    const d = this.app.domains.liste().find((x) => x.aktiv !== false && zert[x.domain] && zert[x.domain].bis);
-    return d ? d.domain : null;
-  }
 
   async #modus(soll) {
     if (this.app.einstellungen.lesen().modus === soll) return;
@@ -102,7 +96,7 @@ export class Wache {
     if (!(e.failover && e.failover.an)) { this.z.meldung = 'Automatisches Fail-over ist aus.'; return; }
     const ich = this.app.unifiZiel(); const partner = this.#partner(e);
     if (!partner || !partner.ip || !ich.ip) { this.z.meldung = 'Noch keine zweite Instanz gekoppelt.'; return; }
-    const domain = await this.#pruefDomain();
+    const domain = await this.app.pruefDomain();
     if (!domain) { this.z.meldung = 'Keine Domain mit Zertifikat zum Prüfen.'; return; }
     const [partnerOk, selbstOk] = await Promise.all([this.pruefen({ host: partner.ip, port: partner.https, domain }), this.pruefen({ host: 'caddy', port: 443, domain })]);
     Object.assign(this.z, { partner_ok: partnerOk, selbst_ok: selbstOk });
@@ -139,7 +133,7 @@ export class Wache {
   async #wechseln(ziel, anderer, art, text) {
     const domains = this.app.domains.liste().filter((d) => d.aktiv !== false).map((d) => d.domain);
     try {
-      await aktivWechseln(this.app.unifiClient(), { ziel, partnerIps: [anderer.ip], domains, pruefen: this.pruefen });
+      await aktivWechseln(this.app.unifiClient(), { ziel, partnerIps: [anderer.ip], domains, pruefen: this.pruefen, sni: await this.app.pruefDomain() });
     } catch (err) {
       this.z.meldung = `Wechsel gescheitert: ${Fehler.aus(err).message}`;
       this.app.protokoll.eintragen({ wer: 'fail-over', aktion: 'failover.fehlgeschlagen', details: { fehler: this.z.meldung } });
