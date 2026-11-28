@@ -47,7 +47,7 @@ test('CIDR: IPv4/IPv6, einzelne Adresse = /32 bzw. /128, Normierung; abgelehnt: 
 
 test('IP in Netz: IPv4, IPv6, IPv4-gemappt, Grenzen', () => {
   assert.equal(ipInNetz('192.168.1.1', '192.168.1.0/24'), true);
-  assert.equal(ipInNetz('10.0.11.1', '192.168.1.0/24'), false);
+  assert.equal(ipInNetz('192.168.2.1', '192.168.1.0/24'), false);
   assert.equal(ipInNetz('::ffff:192.168.5.20', '192.168.5.0/24'), true);
   assert.equal(ipInNetz('fd00::1', 'fd00::/8'), true);
   assert.equal(ipInNetz('fe80::1', 'fd00::/8'), false);

@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { umschaltPlan, aktivIp, NAME_HTTP, NAME_HTTPS } from '../src/unifi/plan.js';
 import { UnifiClient } from '../src/unifi/client.js';
 import { umschalten, aktivWechseln, fahProxyAuf443 } from '../src/unifi/ablauf.js';
-/** Lebend-Prüfung im Test: nie echt ins Netz (192.168.1.x sind echte Geräte im Heimnetz). */
+/** Lebend-Prüfung im Test: nie echt ins Netz (auch Beispieladressen wie 192.168.1.x können echte Geräte sein). */
 const NIE = async () => false;
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -222,7 +222,7 @@ test('API: UniFi-Zugang verschlüsselt, Verbindung testen nagelt den Fingerabdru
     assert.equal(r.j.ergebnis.unifi.passwort, ''); assert.equal(r.j.ergebnis.unifi.passwort_gesetzt, true);
     assert.ok(!(await fs.readFile(path.join(d, 'einstellungen.json'), 'utf8')).includes('richtig'), 'Passwort verschlüsselt');
     assert.equal((await c('PUT', '/api/einstellungen', { unifi: { url: 'http://192.168.1.1' } })).j.fehler.code, 'E_EINGABE');
-    assert.equal((await c('PUT', '/api/einstellungen', { unifi: { ziel_ip: '10.0.10' } })).j.fehler.code, 'E_EINGABE');
+    assert.equal((await c('PUT', '/api/einstellungen', { unifi: { ziel_ip: '192.168.1' } })).j.fehler.code, 'E_EINGABE');
     r = await c('POST', '/api/unifi/testen');
     assert.equal(r.status, 200, JSON.stringify(r.j));
     assert.equal(r.j.ergebnis.fingerabdruck, u.fingerabdruck);

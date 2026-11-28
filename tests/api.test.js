@@ -72,14 +72,14 @@ test('Domain anlegen → Caddy lädt sofort; ändern, löschen; Caddy lehnt ab �
 test('Übersicht: Domains mit Status/Zertifikat/Zugriffen, Basis-Domains und bekannte Ziele für den Anlege-Dialog, Modus; Einstellungen ändern lädt Caddy neu', async () => {
   const u = await aufbau();
   try {
-    await u.c('POST', '/api/domains', { domain: 'nc.example.org', ziel: '192.168.1.23:8080', schutz: 'oeffentlich' });
-    await u.c('POST', '/api/domains', { domain: 'vault.example.org', ziel: '192.168.1.23:8222', schutz: 'heimnetz' });
-    await fs.mkdir(path.join(u.d, 'zertifikate', 'nc.example.org'), { recursive: true });
+    await u.c('POST', '/api/domains', { domain: 'nc.heim.example.org', ziel: '192.168.1.23:8080', schutz: 'oeffentlich' });
+    await u.c('POST', '/api/domains', { domain: 'vault.heim.example.org', ziel: '192.168.1.23:8222', schutz: 'heimnetz' });
+    await fs.mkdir(path.join(u.d, 'zertifikate', 'nc.heim.example.org'), { recursive: true });
     const ue = (await u.c('GET', '/api/uebersicht')).j.ergebnis;
     assert.equal(ue.modus, 'test');
-    assert.deepEqual(ue.basisdomains, ['example.org']);
+    assert.deepEqual(ue.basisdomains, ['heim.example.org']);
     assert.deepEqual(ue.ziele.map((z) => z.ziel).sort(), ['http://192.168.1.23:8080', 'http://192.168.1.23:8222']);
-    const nc = ue.domains.find((x) => x.domain === 'nc.example.org');
+    const nc = ue.domains.find((x) => x.domain === 'nc.heim.example.org');
     assert.ok('status' in nc && 'zertifikat' in nc && 'zugriffe' in nc);
     assert.equal(ue.caddy.ok, true);
     const e = await u.c('PUT', '/api/einstellungen', { heimnetz: ['192.168.1.0/24'] });

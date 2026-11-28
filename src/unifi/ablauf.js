@@ -82,7 +82,7 @@ function zusammenfuehren(alt, neu) {
 
 /**
  * Ziele lokaler DNS-Einträge (A, aktiv, deckt eine Domain), unter denen auf 443 ein FAH-Proxy antwortet – solche Einträge
- * bleiben an (z. B. *.example.org → NAS, dessen Instanz zusätzlich 443 annimmt: nötig fürs WireGuard-VPN).
+ * bleiben an (z. B. *.example.com → NAS, dessen Instanz zusätzlich 443 annimmt: nötig fürs WireGuard-VPN).
  * `sni`: Domain mit Zertifikat, unter der gefragt wird (wie bei der Wache). Ohne Zertifikat scheitert schon der TLS-Aufbau,
  * und ein lebender FAH-Proxy gälte als „nicht auf 443“ – am 23.11. blieb so der DNS beim Ersatz: Die alphabetisch erste
  * Domain war eine neue dns-…-Domain, für die die Haupt-Instanz im Testbetrieb noch kein Zertifikat hatte.

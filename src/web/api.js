@@ -77,7 +77,7 @@ export function apiRegistrieren(app) {
     return r;
   });
   // Zertifikate der eigenen Gruppe (FAH-Adblock braucht für DNS-over-TLS dasselbe Zertifikat wie Caddy – so wird je Name nur EINES
-  // geholt; selfhost.eu & Co. teilen sich bei Let's Encrypt ein Wochenkontingent). Nur Domains der Gruppe, nur gültige.
+  // geholt; Subdomains eines DynDNS-Anbieters teilen sich bei Let's Encrypt ein Wochenkontingent). Nur Domains der Gruppe, nur gültige.
   web.route('GET', '/api/dienst/zertifikate', { dienst: true }, async () => {
     const eigen = new Set(domains.liste().filter(dnsEigen).map((d) => d.domain));
     const beste = new Map();
