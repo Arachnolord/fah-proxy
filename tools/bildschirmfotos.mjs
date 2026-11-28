@@ -163,7 +163,7 @@ function chromeFinden() {
 
 async function browserStarten(profil) {
   const { bin, args } = chromeFinden();
-  const kind = spawn('/usr/sbin/taskpolicy', ['-b', bin, ...args, '--remote-debugging-port=0', `--user-data-dir=${profil}`,
+  const kind = spawn('/usr/sbin/taskpolicy', ['-b', bin, ...args, '--use-mock-keychain', '--remote-debugging-port=0', `--user-data-dir=${profil}`,
     '--no-first-run', '--no-default-browser-check', '--hide-scrollbars', '--mute-audio', '--disable-gpu', '--lang=de-DE', 'about:blank'],
   { stdio: ['ignore', 'ignore', 'pipe'] });
   const adresse = await new Promise((ok, nein) => {
